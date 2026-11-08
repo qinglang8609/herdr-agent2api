@@ -22,6 +22,13 @@ mkdir -p "$MODS" "$HOME_DIR/layouts"
 rm -rf "$MODS/agent2api"
 cp -R "$SRC/mods/agent2api" "$MODS/agent2api"
 
+# 主题：Eva-Theme 转过来的两套（暗/亮），覆盖同名文件，别的不动。
+mkdir -p "$HOME_DIR/themes"
+for t in "$SRC"/themes/*.json; do
+  [ -f "$t" ] || continue
+  cp -f "$t" "$HOME_DIR/themes/$(basename "$t")"
+done
+
 # 布局：单独一份 abs-stats.json，abs.json 原样不动。
 if [ -f "$HOME_DIR/layouts/abs-stats.json" ]; then
   cp "$HOME_DIR/layouts/abs-stats.json" "$HOME_DIR/layouts/abs-stats.json.before-install"
