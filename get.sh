@@ -46,5 +46,5 @@ mkdir -p "$(dirname "$DEST")"
 cp -R "$src" "$DEST"
 chmod +x "$DEST/install.sh" "$DEST/sync-layout.sh" 2>/dev/null || true
 
-say "已解压到 $DEST，开始安装 …"
+say "已解压到 ${DEST}，开始安装 …"
 exec sh "$DEST/install.sh"
