@@ -9,6 +9,13 @@ MODS="$HOME_DIR/mods"
 
 [ -d "$HOME_DIR" ] || { echo "找不到 herdr-app 配置目录：$HOME_DIR" >&2; exit 1; }
 
+# abs-stats 就是 abs 布局的副本多一个节点，所以这台机器得先装过 abs。
+if [ ! -f "$HOME_DIR/layouts/abs.json" ]; then
+  echo "没找到 $HOME_DIR/layouts/abs.json。" >&2
+  echo "这个组件挂在 abs 布局上：先装 abs（herdr_abs_panel 的 install.sh），再回来跑这个。" >&2
+  exit 1
+fi
+
 mkdir -p "$MODS" "$HOME_DIR/layouts"
 
 # mod：复制而不是软链（跟 abs 一样，省得 image() 读软链出问题）。
