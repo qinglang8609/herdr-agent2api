@@ -178,7 +178,7 @@ export default class Stats extends View {
       .py(9)
       .gap(5)
       .justify_center()
-      // 总 Token：标题 + 数值，下面一根按模型分段的堆叠条
+      // Token：标题 + 数值，下面一根按模型分段的堆叠条
       .child(
         v_flex()
           .w_full()
@@ -188,7 +188,7 @@ export default class Stats extends View {
               .w_full()
               .gap(6)
               .items_center()
-              .child(div().text_size(9.5).text_color(t.dim).child("总 Token"))
+              .child(div().text_size(11).text_color(t.dim).child("Token"))
               .child(div().flex_1())
               .child(div().text_size(13).font_semibold().text_color(t.dim).child(fmt(d.tokens))),
           )
