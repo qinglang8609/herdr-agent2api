@@ -183,7 +183,6 @@ export default class Stats extends View {
         .w_full()
         .gap(6)
         .items_center()
-        .child(div().w(6).h(6).flex_none().rounded(2).bg(TINT[k % TINT.length]))
         .child(div().min_w(0).flex_1().truncate().text_size(9).text_color(t.dim).child(name))
         .child(
           div()
