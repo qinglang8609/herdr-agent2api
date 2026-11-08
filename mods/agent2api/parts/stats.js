@@ -127,11 +127,11 @@ export default class Stats extends View {
         .child(
           h_flex()
             .w_full()
-            .h(3)
-            .rounded_full()
+            .h(5)
+            .rounded(3)
             .overflow_hidden()
-            .child(div().h(3).bg(t.dim).flex_grow(Math.max(0.015, f)))
-            .child(div().h(3).bg(t.raised).flex_grow(Math.max(0.0001, 1 - f))),
+            .bg(t.raised)
+            .child(div().h(5).rounded(3).bg(t.dim).flex_grow(Math.max(0.015, f))),
         );
     };
 
@@ -143,15 +143,18 @@ export default class Stats extends View {
     const stack = (models, total) =>
       h_flex()
         .w_full()
-        .h(3)
-        .rounded_full()
+        .h(5)
+        .rounded(3)
         .overflow_hidden()
         .bg(t.raised)
         .children(
           models.map(([, v], k) =>
             div()
-              .h(3)
+              .h(5)
               .bg(TINT[k % TINT.length])
+              // 只有首尾两段带单边圆角，段与段之间保持直边。
+              .when(k === 0, (el) => el.rounded_l(3))
+              .when(k === models.length - 1, (el) => el.rounded_r(3))
               .flex_grow(Math.max(0.0001, total ? v / total : 0)),
           ),
         );
