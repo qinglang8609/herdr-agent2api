@@ -9,9 +9,7 @@ import { View, div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { appHome, exec, readTextFile, theme } from "herdr";
 
-const PER = 500; // 接口 limit 上限
-const MAX_PAGES = 40; // 翻页上限，防死循环
-const TOP_MODELS = 5; // 模型用量显示前几名
+const TOP_MODELS = 5; // 堆叠条最多按几个模型分段
 
 // 中文习惯的单位：万 / 亿。
 const fmt = (n) => {
@@ -44,26 +42,6 @@ export default class Stats extends View {
     }
   }
 
-  // 全部请求记录：offset 一页页翻到够为止。算「总 token」必须拿全，
-  // 只取最近 500 条会少一个数量级。
-  async allRequests(base, auth) {
-    const all = [];
-    let total = null;
-    for (let page = 0; page < MAX_PAGES; page += 1) {
-      const d = await this.getJson(
-        `${base}/api/stats/requests?limit=${PER}&offset=${page * PER}`,
-        auth,
-      );
-      if (!d) break;
-      total = d.data?.total ?? total;
-      const list = d.data?.entries ?? [];
-      all.push(...list);
-      if (list.length < PER) break;
-      if (total != null && all.length >= total) break;
-    }
-    return { entries: all, total };
-  }
-
   refresh(cx) {
     if (this.busy) return;
     this.busy = true;
@@ -82,49 +60,33 @@ export default class Stats extends View {
         }
         const auth = `Authorization: Bearer ${cfg.token}`;
 
-        const acc = await this.getJson(`${base}/api/accounts`, auth);
-        const req = await this.allRequests(base, auth);
-        if (!acc && !req.entries.length) {
+        // 面板报表页用的就是这个汇总接口：一次拿全，不用逐条翻页。
+        //   overview  -> tokens / requests / successful
+        //   models    -> 各模型用量
+        //   cacheRates.last1h -> 近 1 小时缓存命中率
+        // 账号可用和签到还在 /api/accounts 里，两个并发。
+        const [sum, acc] = await Promise.all([
+          this.getJson(`${base}/api/stats/summary`, auth),
+          this.getJson(`${base}/api/accounts`, auth),
+        ]);
+        if (!sum && !acc) {
           this.note = "取不到数据（token 可能过期）";
           return;
         }
 
-        const list = acc?.data?.accounts ?? [];
-        let ok = 0;
-        let tokens = 0;
-        for (const e of req.entries) {
-          if (e.status === 200) ok += 1;
-          tokens += e.totalTokens || 0;
-        }
-
-        // 按模型分：面板上的「模型用量」就是这个口径（model 里已经是显示名）。
-        const byModel = new Map();
-        for (const e of req.entries) {
-          const name = e.clientModel || e.model || "?";
-          byModel.set(name, (byModel.get(name) ?? 0) + (e.totalTokens || 0));
-        }
-        const topModels = [...byModel.entries()]
+        const ov = sum?.data?.overview ?? {};
+        const topModels = (sum?.data?.models ?? [])
+          .map((m) => [m.label || m.model, m.totalTokens || 0])
           .sort((a, b) => b[1] - a[1])
           .slice(0, TOP_MODELS);
-
-        // 近 1 小时缓存命中率。promptTokens 里已经包含 cacheReadTokens，
-        // 所以是 cacheRead / promptTokens，不能把两个数加在一起。
-        const cutoff = Date.now() - 3600000;
-        let cacheRead = 0;
-        let promptAll = 0;
-        for (const e of req.entries) {
-          if (!e.ts || e.ts < cutoff) continue;
-          cacheRead += e.cacheReadTokens || 0;
-          promptAll += e.promptTokens || 0;
-        }
+        const list = acc?.data?.accounts ?? [];
 
         this.data = {
-          tokens,
+          tokens: ov.tokens ?? 0,
           topModels,
-          requests: req.total ?? req.entries.length,
-          sampled: req.entries.length,
-          ok,
-          hit: promptAll > 0 ? cacheRead / promptAll : null,
+          requests: ov.requests ?? 0,
+          ok: ov.successful ?? 0,
+          hit: sum?.data?.cacheRates?.last1h?.rate ?? null,
           // available 为 null 表示「这一轮还没查到」，不是不可用；只有 false 才算不可用。
           usable: list.filter((a) => a.available !== false).length,
           accounts: list.length,
@@ -238,14 +200,7 @@ export default class Stats extends View {
           .child(stack(d.topModels, d.tokens)),
       )
       // 请求数据：成功 / 总，条 = 成功率
-      .child(
-        row(
-          "请求数据",
-          `${num(d.ok)} / ${num(d.requests)}`,
-          rate,
-          rate == null ? null : `${(rate * 100).toFixed(1)}%`,
-        ),
-      )
+      .child(row("请求数据", `${num(d.ok)} / ${num(d.requests)}`, rate))
       .child(
         row("缓存命中 · 1h", d.hit == null ? "—" : `${(d.hit * 100).toFixed(1)}%`, d.hit),
       )
