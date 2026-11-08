@@ -50,3 +50,26 @@ token 从面板拿：浏览器登录管理面板 → F12 → Application → Coo
 ## token 失效
 
 面板 token 会过期。过期的表现是组件显示「接口取不到（token 可能过期）」，重新取一个 token 填进 `agent2api.json` 即可，不用重装。
+
+## abs 更新之后怎么办
+
+`layouts/abs-stats.json` 是 `abs.json` 的副本多一个节点。abs 那边更新布局后，这份副本不会自动跟，跑一次：
+
+```sh
+./sync-layout.sh
+```
+
+它用当前的 `abs.json` 重新生成 `abs-stats.json`（旧的备份成 `.before-sync`），最后切一下布局让改动重载。`abs.json` 只读不改。
+
+除此之外不会互相影响：abs 的 `install.sh` 只动 `mods/abs` 和 `layouts/abs.json`，碰不到 `mods/agent2api`、`layouts/abs-stats.json` 和 `agent2api.json`。
+
+## 接口
+
+| 接口 | 用途 |
+|---|---|
+| `GET /api/stats/summary` | `overview.tokens / requests / successful`、`models[]`、`cacheRates.last1h.rate` |
+| `GET /api/accounts` | 每个账号的 `available`、`checkedInToday` |
+
+两个都带 `Authorization: Bearer <panel token>`，用 `curl --compressed` 拉（原始 39KB，压缩后约 5.4KB）。15 秒刷新一次，一次约 0.12 秒。
+
+**注意**：面板的「签到中心」走的是桌面客户端的 Tauri 能力（`window.workbuddyDesktop.getCheckinCenter`），不是 HTTP 接口，所以浏览器/curl 拿不到签到汇总 —— 只能数 `/api/accounts` 里每个账号的 `checkedInToday`。
