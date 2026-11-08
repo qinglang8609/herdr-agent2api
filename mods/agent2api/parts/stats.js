@@ -162,8 +162,8 @@ export default class Stats extends View {
     if (!this.data) {
       return v_flex()
         .size_full()
-        .px(8)
-        .py(8)
+        .px(14)
+        .py(12)
         .justify_center()
         .text_size(10.5)
         .text_color(t.dim)
@@ -177,8 +177,8 @@ export default class Stats extends View {
 
     return v_flex()
       .size_full()
-      .px(8)
-      .py(8)
+      .px(14)
+      .py(12)
       .gap(5)
       .justify_center()
       // Token：标题 + 数值，下面一根按模型分段的堆叠条
