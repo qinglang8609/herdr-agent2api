@@ -122,7 +122,7 @@ export default class Stats extends View {
             .when(Boolean(sub), (el) =>
               el.child(div().text_size(10).text_color(t.dim).child(sub)),
             )
-            .child(div().text_size(12.5).font_semibold().text_color(t.dim).child(value)),
+            .child(div().text_size(12).font_semibold().text_color(t.dim).child(value)),
         )
         .child(
           h_flex()
@@ -193,7 +193,7 @@ export default class Stats extends View {
               .items_center()
               .child(div().text_size(11).text_color(t.dim).child("Token"))
               .child(div().flex_1())
-              .child(div().text_size(12.5).font_semibold().text_color(t.dim).child(fmt(d.tokens))),
+              .child(div().text_size(12).font_semibold().text_color(t.dim).child(fmt(d.tokens))),
           )
           .child(stack(d.topModels, d.tokens)),
       )
