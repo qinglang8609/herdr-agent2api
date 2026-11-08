@@ -9,11 +9,11 @@ MODS="$HOME_DIR/mods"
 
 [ -d "$HOME_DIR" ] || { echo "找不到 herdr-app 配置目录：$HOME_DIR" >&2; exit 1; }
 
-# abs-stats 就是 abs 布局的副本多一个节点，所以这台机器得先装过 abs。
+# abs-stats 是 abs 布局的副本多一个节点。没有 abs 也能装（组件自己会显示），
+# 只是布局里其它节点会是空的 —— 提示一句，不拦。
 if [ ! -f "$HOME_DIR/layouts/abs.json" ]; then
-  echo "没找到 $HOME_DIR/layouts/abs.json。" >&2
-  echo "这个组件挂在 abs 布局上：先装 abs（herdr_abs_panel 的 install.sh），再回来跑这个。" >&2
-  exit 1
+  echo "提示：没找到 layouts/abs.json（abs 没装）。"
+  echo "      组件本身可以单独显示；想要完整界面就先装 abs，再跑一次本脚本。"
 fi
 
 mkdir -p "$MODS" "$HOME_DIR/layouts"
