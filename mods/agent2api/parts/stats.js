@@ -117,12 +117,12 @@ export default class Stats extends View {
             .w_full()
             .gap(6)
             .items_center()
-            .child(div().text_size(9.5).text_color(t.dim).child(name))
+            .child(div().text_size(11).text_color(t.dim).child(name))
             .child(div().flex_1())
             .when(Boolean(sub), (el) =>
-              el.child(div().text_size(9).text_color(t.dim).child(sub)),
+              el.child(div().text_size(10).text_color(t.dim).child(sub)),
             )
-            .child(div().text_size(11).font_semibold().text_color(t.dim).child(value)),
+            .child(div().text_size(13).font_semibold().text_color(t.dim).child(value)),
         )
         .child(
           h_flex()
@@ -135,14 +135,8 @@ export default class Stats extends View {
         );
     };
 
-    // 段色按模型名字来：deepseek 蓝、glm 深蓝、qwen 橙，其余用主题的暗灰。
-    const tintOf = (name) => {
-      const n = String(name || "").toLowerCase();
-      if (n.includes("deepseek")) return "#61afef";
-      if (n.includes("glm")) return "#2f5f9e";
-      if (n.includes("qwen")) return "#d19a66";
-      return t.dim;
-    };
+    // 段色只在亮灰和暗灰之间交替，不用彩色。
+    const TINT = [t.muted, t.border];
 
     // 一根堆叠条：按模型占比分段。
     const stack = (models, total) =>
@@ -153,10 +147,10 @@ export default class Stats extends View {
         .overflow_hidden()
         .bg(t.raised)
         .children(
-          models.map(([name, v]) =>
+          models.map(([, v], k) =>
             div()
               .h(4)
-              .bg(tintOf(name))
+              .bg(TINT[k % TINT.length])
               .flex_grow(Math.max(0.0001, total ? v / total : 0)),
           ),
         );
@@ -195,7 +189,7 @@ export default class Stats extends View {
               .items_center()
               .child(div().text_size(9.5).text_color(t.dim).child("总 Token"))
               .child(div().flex_1())
-              .child(div().text_size(11).font_semibold().text_color(t.dim).child(fmt(d.tokens))),
+              .child(div().text_size(13).font_semibold().text_color(t.dim).child(fmt(d.tokens))),
           )
           .child(stack(d.topModels, d.tokens)),
       )
