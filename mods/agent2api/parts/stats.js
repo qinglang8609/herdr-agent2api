@@ -28,8 +28,8 @@ export default class Stats extends View {
     this.note = null;
     this.busy = false;
     this.refresh(cx);
-    // 统计数字不用秒级新鲜，5 分钟一次。
-    cx.timer.every(300000, (cx) => this.refresh(cx));
+    // 取数就是两个小请求（summary + accounts，共约 80KB），15 秒一次不心疼。
+    cx.timer.every(15000, (cx) => this.refresh(cx));
   }
 
   async getJson(url, auth) {
