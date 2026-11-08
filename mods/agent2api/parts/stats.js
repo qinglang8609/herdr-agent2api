@@ -1,4 +1,4 @@
-// 侧栏最底部的统计块：一行一个指标，上面是名字和数值，下面是进度条。
+// 侧栏最底部的统计块：模型用量 + 成功/总请求 + 缓存命中 + 账号 + 签到。
 // 数据来自自己搭的 code.d8gx.com 面板接口：
 //   /api/accounts           账号列表（available、enabled、checkedInToday）
 //   /api/stats/requests     请求记录，offset 翻页，每页 limit 上限 500
@@ -11,6 +11,7 @@ import { appHome, exec, readTextFile, theme } from "herdr";
 
 const PER = 500; // 接口 limit 上限
 const MAX_PAGES = 40; // 翻页上限，防死循环
+const TOP_MODELS = 5; // 模型用量显示前几名
 
 // 中文习惯的单位：万 / 亿。
 const fmt = (n) => {
@@ -19,6 +20,9 @@ const fmt = (n) => {
   if (n >= 1e4) return `${(n / 1e4).toFixed(1)}万`;
   return String(Math.round(n));
 };
+
+// 请求数用千分位，跟面板一致。
+const num = (n) => (n == null ? "—" : Number(n).toLocaleString("en-US"));
 
 export default class Stats extends View {
   init(_props, cx) {
@@ -92,17 +96,17 @@ export default class Stats extends View {
           if (e.status === 200) ok += 1;
           tokens += e.totalTokens || 0;
         }
-        // 今日的量：给「总 Token / 请求」那两根条当分母，条短就说明今天用得少。
-        const midnight = new Date();
-        midnight.setHours(0, 0, 0, 0);
-        const dayStart = midnight.getTime();
-        let todayTokens = 0;
-        let todayReqs = 0;
+
+        // 按模型分：面板上的「模型用量」就是这个口径（model 里已经是显示名）。
+        const byModel = new Map();
         for (const e of req.entries) {
-          if (!e.ts || e.ts < dayStart) continue;
-          todayReqs += 1;
-          todayTokens += e.totalTokens || 0;
+          const name = e.clientModel || e.model || "?";
+          byModel.set(name, (byModel.get(name) ?? 0) + (e.totalTokens || 0));
         }
+        const topModels = [...byModel.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, TOP_MODELS);
+
         // 近 1 小时缓存命中率。promptTokens 里已经包含 cacheReadTokens，
         // 所以是 cacheRead / promptTokens，不能把两个数加在一起。
         const cutoff = Date.now() - 3600000;
@@ -113,10 +117,10 @@ export default class Stats extends View {
           cacheRead += e.cacheReadTokens || 0;
           promptAll += e.promptTokens || 0;
         }
+
         this.data = {
           tokens,
-          todayTokens,
-          todayReqs,
+          topModels,
           requests: req.total ?? req.entries.length,
           sampled: req.entries.length,
           ok,
@@ -139,10 +143,9 @@ export default class Stats extends View {
   render(cx) {
     const t = theme();
 
-    // 一行一个指标：左上名字、右上数值，下面一条进度。
-    // 条的两段用 flex_grow 分配，是真正的百分比，不是写死的像素。
-    // 配色只留一套：标签灰、数值主前景色、条用中间灰，不按指标换色。
-    const row = (name, value, frac, hint) => {
+    // 一个指标：左上名字、右上数值，下面一条进度。
+    // 两段用 flex_grow 分配，是真正的百分比，不是写死的像素。
+    const row = (name, value, frac, sub) => {
       const f = Math.max(0, Math.min(1, frac ?? 0));
       return v_flex()
         .w_full()
@@ -150,10 +153,13 @@ export default class Stats extends View {
         .child(
           h_flex()
             .w_full()
+            .gap(6)
             .items_center()
-            .when(Boolean(hint), (el) => el.tooltip(hint))
             .child(div().text_size(9.5).text_color(t.dim).child(name))
             .child(div().flex_1())
+            .when(Boolean(sub), (el) =>
+              el.child(div().text_size(9).text_color(t.dim).child(sub)),
+            )
             .child(div().text_size(11).font_semibold().text_color(t.dim).child(value)),
         )
         .child(
@@ -167,6 +173,44 @@ export default class Stats extends View {
         );
     };
 
+    // 模型配色：主题五色压一档透明度，免得刺眼；堆叠条和下面的小色块共用。
+    const TINT = [t.ansi6, t.ansi2, t.ansi4, t.ansi5, t.ansi3].map((c) => `${c}b3`);
+
+    // 模型用量一行：小色块（图例）+ 名字 + 占比。
+    const modelRow = (name, v, total, k) => {
+      const f = total ? v / total : 0;
+      return h_flex()
+        .w_full()
+        .gap(6)
+        .items_center()
+        .child(div().w(6).h(6).flex_none().rounded(2).bg(TINT[k % TINT.length]))
+        .child(div().min_w(0).flex_1().truncate().text_size(9).text_color(t.dim).child(name))
+        .child(
+          div()
+            .text_size(9)
+            .flex_none()
+            .text_color(t.dim)
+            .child(`${(f * 100).toFixed(0)}%`),
+        );
+    };
+
+    // 一根堆叠条：按模型占比分段，段色与上面的图例对应。
+    const stack = (models, total) =>
+      h_flex()
+        .w_full()
+        .h(4)
+        .rounded(2)
+        .overflow_hidden()
+        .bg(t.raised)
+        .children(
+          models.map(([, v], k) =>
+            div()
+              .h(4)
+              .bg(TINT[k % TINT.length])
+              .flex_grow(Math.max(0.0001, total ? v / total : 0)),
+          ),
+        );
+
     if (!this.data) {
       return v_flex()
         .size_full()
@@ -179,7 +223,7 @@ export default class Stats extends View {
     }
 
     const d = this.data;
-    const rate = d.sampled ? d.ok / d.sampled : null;
+    const rate = d.requests ? d.ok / d.requests : null;
     const usable = d.accounts ? d.usable / d.accounts : null;
     const signed = d.accounts ? d.signed / d.accounts : null;
 
@@ -189,13 +233,35 @@ export default class Stats extends View {
       .py(9)
       .gap(5)
       .justify_center()
+      // 模型用量明细
+      .children(d.topModels.map(([name, v], k) => modelRow(name, v, d.tokens, k)))
+      // 总 Token：标题 + 数值，下面一根按模型分段的堆叠条
       .child(
-        row("总 Token", fmt(d.tokens), d.tokens ? d.todayTokens / d.tokens : 0, "进度条：今日占累计的比例"),
+        v_flex()
+          .w_full()
+          .gap(3)
+          .child(
+            h_flex()
+              .w_full()
+              .gap(6)
+              .items_center()
+              .child(div().text_size(9.5).text_color(t.dim).child("总 Token"))
+              .child(div().flex_1())
+              .child(div().text_size(11).font_semibold().text_color(t.dim).child(fmt(d.tokens))),
+          )
+          .child(stack(d.topModels, d.tokens)),
       )
+      // 成功请求数（条 = 成功率）
       .child(
-        row("请求", fmt(d.requests ?? 0), d.requests ? d.todayReqs / d.requests : 0, "进度条：今日占累计的比例"),
+        row(
+          "成功请求数",
+          num(d.ok),
+          rate,
+          rate == null ? null : `${(rate * 100).toFixed(1)}%`,
+        ),
       )
-      .child(row("成功率", rate == null ? "—" : `${(rate * 100).toFixed(1)}%`, rate))
+      // 总请求数（条 = 成功率，和上面同一比例，便于对照）
+      .child(row("本月总请求", `${num(d.ok)}/${num(d.requests)}`, rate))
       .child(
         row("缓存命中 · 1h", d.hit == null ? "—" : `${(d.hit * 100).toFixed(1)}%`, d.hit),
       )
