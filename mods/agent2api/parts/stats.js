@@ -137,7 +137,7 @@ export default class Stats extends View {
 
     // 段色只在两种灰之间交替，不用彩色：亮的那段跟左侧栏图标同一个色（t.muted），
     // 暗的那段用比 border 更深的 raised，两者对比才看得出来。
-    const TINT = [t.muted, t.raised];
+    const TINT = [t.dim, t.raised];
 
     // 一根堆叠条：按模型占比分段。
     const stack = (models, total) =>
