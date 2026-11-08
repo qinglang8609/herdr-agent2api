@@ -200,7 +200,7 @@ export default class Stats extends View {
       // 请求数据：成功 / 总，条 = 成功率
       .child(row("请求数据", `${num(d.ok)} / ${num(d.requests)}`, rate))
       .child(
-        row("缓存命中 · 1h", d.hit ? `${(d.hit * 100).toFixed(1)}%` : "—", d.hit ?? 0),
+        row("缓存命中 · 1h", d.hit == null ? "—" : `${(d.hit * 100).toFixed(1)}%`, d.hit),
       )
       .child(row("账号可用", d.accounts ? `${d.usable}/${d.accounts}` : "—", usable))
       .child(row("今日签到", d.accounts ? `${d.signed}/${d.accounts}` : "—", signed))
