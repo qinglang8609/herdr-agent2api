@@ -173,27 +173,16 @@ export default class Stats extends View {
         );
     };
 
-    // 模型配色：主题五色压一档透明度，免得刺眼；堆叠条和下面的小色块共用。
-    const TINT = [t.ansi6, t.ansi2, t.ansi4, t.ansi5, t.ansi3].map((c) => `${c}b3`);
-
-    // 模型用量一行：小色块（图例）+ 名字 + 占比。
-    const modelRow = (name, v, total, k) => {
-      const f = total ? v / total : 0;
-      return h_flex()
-        .w_full()
-        .gap(6)
-        .items_center()
-        .child(div().min_w(0).flex_1().truncate().text_size(9).text_color(t.dim).child(name))
-        .child(
-          div()
-            .text_size(9)
-            .flex_none()
-            .text_color(t.dim)
-            .child(`${(f * 100).toFixed(0)}%`),
-        );
+    // 段色按模型名字来：deepseek 蓝、glm 深蓝、qwen 橙，其余用主题的暗灰。
+    const tintOf = (name) => {
+      const n = String(name || "").toLowerCase();
+      if (n.includes("deepseek")) return "#61afef";
+      if (n.includes("glm")) return "#2f5f9e";
+      if (n.includes("qwen")) return "#d19a66";
+      return t.dim;
     };
 
-    // 一根堆叠条：按模型占比分段，段色与上面的图例对应。
+    // 一根堆叠条：按模型占比分段。
     const stack = (models, total) =>
       h_flex()
         .w_full()
@@ -202,10 +191,10 @@ export default class Stats extends View {
         .overflow_hidden()
         .bg(t.raised)
         .children(
-          models.map(([, v], k) =>
+          models.map(([name, v]) =>
             div()
               .h(4)
-              .bg(TINT[k % TINT.length])
+              .bg(tintOf(name))
               .flex_grow(Math.max(0.0001, total ? v / total : 0)),
           ),
         );
@@ -232,8 +221,6 @@ export default class Stats extends View {
       .py(9)
       .gap(5)
       .justify_center()
-      // 模型用量明细
-      .children(d.topModels.map(([name, v], k) => modelRow(name, v, d.tokens, k)))
       // 总 Token：标题 + 数值，下面一根按模型分段的堆叠条
       .child(
         v_flex()
