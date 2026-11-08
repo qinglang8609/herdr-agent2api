@@ -28,8 +28,13 @@ if [ -f "$HOME_DIR/layouts/abs-stats.json" ]; then
 fi
 cp -f "$SRC/layouts/abs-stats.json" "$HOME_DIR/layouts/abs-stats.json"
 
-# token 配置：没有才生成，不覆盖你已经填好的。
-if [ ! -f "$HOME_DIR/agent2api.json" ]; then
+# token 配置：给了 A2A_TOKEN 就直接写；没给的话，只在没有配置文件时才生成模板。
+if [ -n "${A2A_TOKEN:-}" ]; then
+  printf '{\n  "base": "%s",\n  "token": "%s"\n}\n' \
+    "${A2A_BASE:-https://code.d8gx.com}" "$A2A_TOKEN" > "$HOME_DIR/agent2api.json"
+  chmod 600 "$HOME_DIR/agent2api.json"
+  echo "token 已写入 $HOME_DIR/agent2api.json"
+elif [ ! -f "$HOME_DIR/agent2api.json" ]; then
   cp "$SRC/agent2api.example.json" "$HOME_DIR/agent2api.json"
   chmod 600 "$HOME_DIR/agent2api.json"
   echo "已生成 $HOME_DIR/agent2api.json —— 打开它，把 token 填进去。"

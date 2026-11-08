@@ -73,3 +73,18 @@ token 从面板拿：浏览器登录管理面板 → F12 → Application → Coo
 两个都带 `Authorization: Bearer <panel token>`，用 `curl --compressed` 拉（原始 39KB，压缩后约 5.4KB）。15 秒刷新一次，一次约 0.12 秒。
 
 **注意**：面板的「签到中心」走的是桌面客户端的 Tauri 能力（`window.workbuddyDesktop.getCheckinCenter`），不是 HTTP 接口，所以浏览器/curl 拿不到签到汇总 —— 只能数 `/api/accounts` 里每个账号的 `checkedInToday`。
+
+## 一键装（这台机器已经有 herdr-app + abs）
+
+```sh
+gh repo clone qinglang8609/herdr-agent2api /tmp/a2a \
+  && A2A_TOKEN='面板token粘这里' sh /tmp/a2a/install.sh \
+  && rm -rf /tmp/a2a
+```
+
+- 给了 `A2A_TOKEN` 就直接写进 `~/.config/herdr-app/agent2api.json`（600 权限），一步到位
+- 不给就生成模板，装完自己填
+- 面板换域名了用 `A2A_BASE='https://别的域名'`
+- 没有 `gh` 就用 `git clone https://github.com/qinglang8609/herdr-agent2api.git /tmp/a2a`
+
+装完会自动切到 `abs-stats` 布局；没切过去就手动 `herdr-app do layout.switch --name abs-stats`。
