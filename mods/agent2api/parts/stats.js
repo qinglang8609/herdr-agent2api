@@ -1,4 +1,4 @@
-// 侧栏最底部的统计块：总 token / 请求 / 成功率 / 缓存命中 / 账号 / 签到。
+// 侧栏最底部的统计块：一行一个指标，上面是名字和数值，下面是进度条。
 // 数据来自自己搭的 code.d8gx.com 面板接口：
 //   /api/accounts           账号列表（available、enabled、checkedInToday）
 //   /api/stats/requests     请求记录，offset 翻页，每页 limit 上限 500
@@ -11,6 +11,9 @@ import { appHome, exec, readTextFile, theme } from "herdr";
 
 const PER = 500; // 接口 limit 上限
 const MAX_PAGES = 40; // 翻页上限，防死循环
+// 总 token / 请求数没有天然上限，各给一个刻度当进度条的满格。
+const TOKEN_FULL = 1e9; // 10 亿
+const REQ_FULL = 5000; // 5000 次
 
 // 中文习惯的单位：万 / 亿。
 const fmt = (n) => {
@@ -126,60 +129,63 @@ export default class Stats extends View {
   render(cx) {
     const t = theme();
 
-    // 一格：上面大数字（彩色），下面小标签（灰）。
-    const cell = (value, name, color) =>
-      v_flex()
-        .flex_1()
-        .min_w(0)
-        .gap(1)
-        .child(div().text_size(13).font_semibold().text_color(color).child(value))
-        .child(div().text_size(9).text_color(t.dim).child(name));
-
-    const pair = (a, b) =>
-      h_flex().w_full().gap(10).items_start().child(a).child(b);
+    // 一行一个指标：左上名字、右上数值，下面一条进度。
+    // 条的两段用 flex_grow 分配，是真正的百分比，不是写死的像素。
+    // 配色只留一套：标签灰、数值主前景色、条用中间灰，不按指标换色。
+    const row = (name, value, frac) => {
+      const f = Math.max(0, Math.min(1, frac ?? 0));
+      return v_flex()
+        .w_full()
+        .gap(3)
+        .child(
+          h_flex()
+            .w_full()
+            .items_center()
+            .child(div().text_size(9.5).text_color(t.dim).child(name))
+            .child(div().flex_1())
+            .child(div().text_size(11).font_semibold().text_color(t.foreground).child(value)),
+        )
+        .child(
+          h_flex()
+            .w_full()
+            .h(3)
+            .rounded(2)
+            .overflow_hidden()
+            .child(div().h(3).bg(t.muted).flex_grow(Math.max(0.015, f)))
+            .child(div().h(3).bg(t.border).flex_grow(Math.max(0.0001, 1 - f))),
+        );
+    };
 
     if (!this.data) {
       return v_flex()
         .size_full()
         .px(12)
-        .py(12)
+        .py(10)
         .justify_center()
-        .border_t(1)
-        .border_color(t.border)
         .text_size(10.5)
         .text_color(t.dim)
         .child(this.note ?? "读取中…");
     }
 
     const d = this.data;
-    const rate = d.sampled ? (d.ok / d.sampled) * 100 : null;
+    const rate = d.sampled ? d.ok / d.sampled : null;
+    const usable = d.accounts ? d.usable / d.accounts : null;
+    const signed = d.accounts ? d.signed / d.accounts : null;
 
     return v_flex()
       .size_full()
       .px(12)
-      .py(10)
-      .gap(9)
+      .py(9)
+      .gap(5)
       .justify_center()
-      .border_t(1)
-      .border_color(t.border)
+      .child(row("总 Token", fmt(d.tokens), d.tokens / TOKEN_FULL))
+      .child(row("请求", fmt(d.requests ?? 0), (d.requests ?? 0) / REQ_FULL))
+      .child(row("成功率", rate == null ? "—" : `${(rate * 100).toFixed(1)}%`, rate))
       .child(
-        pair(
-          cell(fmt(d.tokens), "总 Token", t.ansi6),
-          cell(fmt(d.requests ?? 0), "请求", t.foreground),
-        ),
+        row("缓存命中 · 1h", d.hit == null ? "—" : `${(d.hit * 100).toFixed(1)}%`, d.hit),
       )
-      .child(
-        pair(
-          cell(rate == null ? "—" : `${rate.toFixed(1)}%`, "成功率", t.ansi2),
-          cell(d.hit == null ? "—" : `${(d.hit * 100).toFixed(1)}%`, "缓存命中 · 1h", t.ansi5),
-        ),
-      )
-      .child(
-        pair(
-          cell(d.accounts ? `${d.usable}/${d.accounts}` : "—", "账号可用", t.ansi4),
-          cell(d.accounts ? `${d.signed}/${d.accounts}` : "—", "今日签到", t.ansi3),
-        ),
-      )
+      .child(row("账号可用", d.accounts ? `${d.usable}/${d.accounts}` : "—", usable))
+      .child(row("今日签到", d.accounts ? `${d.signed}/${d.accounts}` : "—", signed))
       .when(Boolean(this.note), (el) =>
         el.child(div().text_size(9.5).text_color(t.ansi1).child(this.note)),
       );
