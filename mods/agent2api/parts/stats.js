@@ -162,8 +162,8 @@ export default class Stats extends View {
     if (!this.data) {
       return v_flex()
         .size_full()
-        .px(12)
-        .py(10)
+        .px(8)
+        .py(8)
         .justify_center()
         .text_size(10.5)
         .text_color(t.dim)
@@ -177,8 +177,8 @@ export default class Stats extends View {
 
     return v_flex()
       .size_full()
-      .px(12)
-      .py(9)
+      .px(8)
+      .py(8)
       .gap(5)
       .justify_center()
       // Token：标题 + 数值，下面一根按模型分段的堆叠条
@@ -200,7 +200,7 @@ export default class Stats extends View {
       // 请求数据：成功 / 总，条 = 成功率
       .child(row("请求数据", `${num(d.ok)} / ${num(d.requests)}`, rate))
       .child(
-        row("缓存命中 · 1h", d.hit == null ? "—" : `${(d.hit * 100).toFixed(1)}%`, d.hit),
+        row("缓存命中 · 1h", d.hit ? `${(d.hit * 100).toFixed(1)}%` : "—", d.hit ?? 0),
       )
       .child(row("账号可用", d.accounts ? `${d.usable}/${d.accounts}` : "—", usable))
       .child(row("今日签到", d.accounts ? `${d.signed}/${d.accounts}` : "—", signed))
