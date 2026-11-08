@@ -11,9 +11,6 @@ import { appHome, exec, readTextFile, theme } from "herdr";
 
 const PER = 500; // 接口 limit 上限
 const MAX_PAGES = 40; // 翻页上限，防死循环
-// 总 token / 请求数没有天然上限，各给一个刻度当进度条的满格。
-const TOKEN_FULL = 1e9; // 10 亿
-const REQ_FULL = 5000; // 5000 次
 
 // 中文习惯的单位：万 / 亿。
 const fmt = (n) => {
@@ -95,6 +92,17 @@ export default class Stats extends View {
           if (e.status === 200) ok += 1;
           tokens += e.totalTokens || 0;
         }
+        // 今日的量：给「总 Token / 请求」那两根条当分母，条短就说明今天用得少。
+        const midnight = new Date();
+        midnight.setHours(0, 0, 0, 0);
+        const dayStart = midnight.getTime();
+        let todayTokens = 0;
+        let todayReqs = 0;
+        for (const e of req.entries) {
+          if (!e.ts || e.ts < dayStart) continue;
+          todayReqs += 1;
+          todayTokens += e.totalTokens || 0;
+        }
         // 近 1 小时缓存命中率。promptTokens 里已经包含 cacheReadTokens，
         // 所以是 cacheRead / promptTokens，不能把两个数加在一起。
         const cutoff = Date.now() - 3600000;
@@ -107,6 +115,8 @@ export default class Stats extends View {
         }
         this.data = {
           tokens,
+          todayTokens,
+          todayReqs,
           requests: req.total ?? req.entries.length,
           sampled: req.entries.length,
           ok,
@@ -132,7 +142,7 @@ export default class Stats extends View {
     // 一行一个指标：左上名字、右上数值，下面一条进度。
     // 条的两段用 flex_grow 分配，是真正的百分比，不是写死的像素。
     // 配色只留一套：标签灰、数值主前景色、条用中间灰，不按指标换色。
-    const row = (name, value, frac) => {
+    const row = (name, value, frac, hint) => {
       const f = Math.max(0, Math.min(1, frac ?? 0));
       return v_flex()
         .w_full()
@@ -141,9 +151,10 @@ export default class Stats extends View {
           h_flex()
             .w_full()
             .items_center()
+            .when(Boolean(hint), (el) => el.tooltip(hint))
             .child(div().text_size(9.5).text_color(t.dim).child(name))
             .child(div().flex_1())
-            .child(div().text_size(11).font_semibold().text_color(t.foreground).child(value)),
+            .child(div().text_size(11).font_semibold().text_color(t.dim).child(value)),
         )
         .child(
           h_flex()
@@ -151,8 +162,8 @@ export default class Stats extends View {
             .h(3)
             .rounded(2)
             .overflow_hidden()
-            .child(div().h(3).bg(t.muted).flex_grow(Math.max(0.015, f)))
-            .child(div().h(3).bg(t.border).flex_grow(Math.max(0.0001, 1 - f))),
+            .child(div().h(3).bg(t.dim).flex_grow(Math.max(0.015, f)))
+            .child(div().h(3).bg(t.raised).flex_grow(Math.max(0.0001, 1 - f))),
         );
     };
 
@@ -178,8 +189,12 @@ export default class Stats extends View {
       .py(9)
       .gap(5)
       .justify_center()
-      .child(row("总 Token", fmt(d.tokens), d.tokens / TOKEN_FULL))
-      .child(row("请求", fmt(d.requests ?? 0), (d.requests ?? 0) / REQ_FULL))
+      .child(
+        row("总 Token", fmt(d.tokens), d.tokens ? d.todayTokens / d.tokens : 0, "进度条：今日占累计的比例"),
+      )
+      .child(
+        row("请求", fmt(d.requests ?? 0), d.requests ? d.todayReqs / d.requests : 0, "进度条：今日占累计的比例"),
+      )
       .child(row("成功率", rate == null ? "—" : `${(rate * 100).toFixed(1)}%`, rate))
       .child(
         row("缓存命中 · 1h", d.hit == null ? "—" : `${(d.hit * 100).toFixed(1)}%`, d.hit),
