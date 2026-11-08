@@ -1,0 +1,8 @@
+# herdr-app 每台机器自己生成的类型文件，只给编辑器补全用
+*.d.ts
+jsconfig.json
+
+# 真 token 只在本机，绝不进仓库
+agent2api.json
+*.bak*
+.DS_Store
