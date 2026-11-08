@@ -16,7 +16,7 @@ const BAR = 54; // 进度条宽度（px）
 // 中文习惯的单位：万 / 亿。
 const fmt = (n) => {
   if (n == null) return "—";
-  if (n >= 1e8) return `${(n / 1e8).toFixed(1)}亿`;
+  if (n >= 1e8) return `${(n / 1e8).toFixed(2)}亿`;
   if (n >= 1e4) return `${(n / 1e4).toFixed(1)}万`;
   return String(Math.round(n));
 };
@@ -93,7 +93,18 @@ export default class Stats extends View {
           if (e.status === 200) ok += 1;
           tokens += e.totalTokens || 0;
         }
+        // 近 1 小时缓存命中率。promptTokens 里已经包含 cacheReadTokens，
+        // 所以是 cacheRead / promptTokens，不能再把两个数加到一起。
+        const cutoff = Date.now() - 3600000;
+        let cacheRead = 0;
+        let promptAll = 0;
+        for (const e of req.entries) {
+          if (!e.ts || e.ts < cutoff) continue;
+          cacheRead += e.cacheReadTokens || 0;
+          promptAll += e.promptTokens || 0;
+        }
         this.data = {
+          hit: promptAll > 0 ? cacheRead / promptAll : null,
           requests: req.total ?? req.entries.length,
           sampled: req.entries.length,
           ok,
@@ -157,8 +168,8 @@ export default class Stats extends View {
     return v_flex()
       .size_full()
       .px(12)
-      .py(10)
-      .gap(8)
+      .py(12)
+      .gap(11)
       .justify_center()
       .border_t(1)
       .border_color(t.border)
@@ -184,6 +195,17 @@ export default class Stats extends View {
           .child(bar(rate ?? 0, t.ansi2))
           .child(number(rate == null ? "—" : `${(rate * 100).toFixed(1)}%`, t.ansi2))
           .child(spacer()),
+      )
+      // 缓存命中率（近 1 小时）
+      .child(
+        h_flex()
+          .w_full()
+          .gap(8)
+          .items_center()
+          .child(label("缓存命中率"))
+          .child(div().text_size(9).text_color(t.dim).child("近 1 小时"))
+          .child(spacer())
+          .child(number(d.hit == null ? "—" : `${(d.hit * 100).toFixed(1)}%`, t.ansi5)),
       )
       // 账号可用：蓝条；今日签到：橙字
       .child(
