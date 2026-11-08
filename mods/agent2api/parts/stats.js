@@ -237,17 +237,15 @@ export default class Stats extends View {
           )
           .child(stack(d.topModels, d.tokens)),
       )
-      // 成功请求数（条 = 成功率）
+      // 请求数据：成功 / 总，条 = 成功率
       .child(
         row(
-          "成功请求数",
-          num(d.ok),
+          "请求数据",
+          `${num(d.ok)} / ${num(d.requests)}`,
           rate,
           rate == null ? null : `${(rate * 100).toFixed(1)}%`,
         ),
       )
-      // 总请求数（条 = 成功率，和上面同一比例，便于对照）
-      .child(row("本月总请求", `${num(d.ok)}/${num(d.requests)}`, rate))
       .child(
         row("缓存命中 · 1h", d.hit == null ? "—" : `${(d.hit * 100).toFixed(1)}%`, d.hit),
       )
