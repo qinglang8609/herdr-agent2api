@@ -128,7 +128,7 @@ export default class Stats extends View {
           h_flex()
             .w_full()
             .h(3)
-            .rounded(2)
+            .rounded_full()
             .overflow_hidden()
             .child(div().h(3).bg(t.dim).flex_grow(Math.max(0.015, f)))
             .child(div().h(3).bg(t.raised).flex_grow(Math.max(0.0001, 1 - f))),
@@ -143,14 +143,14 @@ export default class Stats extends View {
     const stack = (models, total) =>
       h_flex()
         .w_full()
-        .h(4)
-        .rounded(2)
+        .h(3)
+        .rounded_full()
         .overflow_hidden()
         .bg(t.raised)
         .children(
           models.map(([, v], k) =>
             div()
-              .h(4)
+              .h(3)
               .bg(TINT[k % TINT.length])
               .flex_grow(Math.max(0.0001, total ? v / total : 0)),
           ),
