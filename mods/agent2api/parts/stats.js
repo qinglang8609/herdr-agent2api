@@ -33,7 +33,7 @@ export default class Stats extends View {
   }
 
   async getJson(url, auth) {
-    const r = await exec("curl", ["-s", "--max-time", "20", "-H", auth, url]).catch(() => null);
+    const r = await exec("curl", ["-s", "--compressed", "--max-time", "20", "-H", auth, url]).catch(() => null);
     if (!r || r.code !== 0) return null;
     try {
       return JSON.parse(r.stdout);
