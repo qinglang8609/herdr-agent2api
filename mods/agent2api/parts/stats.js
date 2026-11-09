@@ -29,8 +29,13 @@ const fmt = (n) => {
   return String(Math.round(n));
 };
 
-// 请求数用千分位，跟面板一致。
-const num = (n) => (n == null ? "—" : Number(n).toLocaleString("en-US"));
+// 请求数用千分位，跟面板一致。手写而不用 toLocaleString —— mod 的 JS 引擎没带
+// 完整 ICU，toLocaleString("en-US") 出来是 160819 而不是 160,819。
+const num = (n) => {
+  if (n == null) return "—";
+  const s = String(Math.round(Number(n)));
+  return s.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+};
 
 export default class Stats extends View {
   init(_props, cx) {
@@ -38,6 +43,8 @@ export default class Stats extends View {
     this.note = null;
     this.busy = false;
     this.session = null; // { access, refresh, exp }
+    this.points = null; // 所有账号的积分总数
+    this.pointsAt = 0; // 上次取积分的时间（这个 60 秒才拉一次）
     this.refresh(cx);
     // 取数就是两个小请求（summary + accounts，共约 11KB 压缩后），15 秒一次不心疼。
     cx.timer.every(15000, (cx) => this.refresh(cx));
@@ -182,6 +189,25 @@ export default class Stats extends View {
           .slice(0, TOP_MODELS);
         const list = acc?.data?.accounts ?? [];
 
+        // 总积分：快照里每个账号有一行 id="account"、label="总积分" 的额度，加总即可。
+        // 实时接口 /api/accounts/usage 一次要 4 秒（逐账号查），快照只要 0.15 秒 ——
+        // 用快照，而且 60 秒才拉一次（积分变得慢）。
+        if (!this.points || Date.now() - this.pointsAt > 60000) {
+          const snap = await this.json(`${base}/api/accounts/usage/snapshot`, bearer(access));
+          const sources = snap?.data?.quotaSources;
+          if (sources) {
+            let sum = 0;
+            for (const rows of Object.values(sources)) {
+              for (const row of rows ?? []) {
+                if (row?.id !== "account" || row.unlimited) continue;
+                if (typeof row.remaining === "number") sum += row.remaining;
+              }
+            }
+            this.points = sum;
+            this.pointsAt = Date.now();
+          }
+        }
+
         this.data = {
           tokens: ov.tokens ?? 0,
           topModels,
@@ -274,7 +300,6 @@ export default class Stats extends View {
     const d = this.data;
     const rate = d.requests ? d.ok / d.requests : null;
     const usable = d.accounts ? d.usable / d.accounts : null;
-    const signed = d.accounts ? d.signed / d.accounts : null;
 
     return v_flex()
       .size_full()
@@ -304,7 +329,21 @@ export default class Stats extends View {
         row("缓存命中 · 1h", d.hit == null ? "—" : `${(d.hit * 100).toFixed(1)}%`, d.hit),
       )
       .child(row("账号可用", d.accounts ? `${d.usable}/${d.accounts}` : "—", usable))
-      .child(row("今日签到", d.accounts ? `${d.signed}/${d.accounts}` : "—", signed))
+      // 总积分：积分没有天然上限，这条不画进度条，只给数字。
+      .child(
+        h_flex()
+          .w_full()
+          .gap(6)
+          .items_center()
+          .child(div().text_size(11).text_color(t.dim).child("总积分"))
+          .child(div().flex_1())
+          .child(
+            div()
+              .text_size(11)
+              .text_color(t.dim)
+              .child(this.points == null ? "—" : num(Math.round(this.points))),
+          ),
+      )
       .when(Boolean(this.note), (el) =>
         el.child(div().text_size(9.5).text_color(t.ansi1).child(this.note)),
       );

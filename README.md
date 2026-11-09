@@ -77,6 +77,9 @@ open ~/.config/herdr-app/agent2api.json   # 把 token 填进去
 |---|---|
 | `GET /api/stats/summary` | `overview.tokens / requests / successful`、`models[]`、`cacheRates.last1h.rate` |
 | `GET /api/accounts` | 每个账号的 `available`、`checkedInToday` |
+| `GET /api/accounts/usage/snapshot` | `data.quotaSources` 里每账号一行 `id:"account"`、`label:"总积分"`，加总就是所有账号的积分总数（60 秒拉一次） |
+
+**为什么积分用 snapshot 不用 `usage`**：`/api/accounts/usage` 是逐账号实时查，23 个账号要 **4 秒**；`usage/snapshot` 是最近一次定时查询的快照，只要 **0.15 秒**。数值一样（都出自服务端 `limiter::sources::rows_for`）。
 
 两个都带 `Authorization: Bearer <panel token>`，用 `curl --compressed` 拉（原始 39KB，压缩后约 5.4KB）。15 秒刷新一次，一次约 0.12 秒。
 
