@@ -119,6 +119,19 @@
                       "gap": 8
                     }
                   }
+                },
+                {
+                  "id": "composer",
+                  "type": "block",
+                  "size": {
+                    "px": 132
+                  },
+                  "content": {
+                    "mod": "composer",
+                    "props": {
+                      "part": "composer"
+                    }
+                  }
                 }
               ],
               "resizable": false

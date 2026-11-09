@@ -36,8 +36,29 @@ lists["children"].append({
     "id": "agent2api-stats",
     "type": "block",
     "content": {"mod": "agent2api", "props": {"part": "stats"}},
-    "size": {"px": 196},
+    "size": {"px": 206},
 })
+
+# 终端下面的输入框：插在 thread 的 main 之后。
+def find_any(node, nid):
+    if isinstance(node, dict):
+        if node.get("id") == nid:
+            return node
+        for kid in node.get("children") or []:
+            got = find_any(kid, nid)
+            if got:
+                return got
+    return None
+
+thread = find_any(d, "thread")
+if thread:
+    thread["children"] = [c for c in thread.get("children", []) if c.get("id") != "composer"]
+    thread["children"].append({
+        "id": "composer",
+        "type": "block",
+        "content": {"mod": "composer", "props": {"part": "composer"}},
+        "size": {"px": 132},
+    })
 open(out, "w").write(json.dumps(d, indent=2, ensure_ascii=False))
 print(f"已用 {src} 生成 {out}")
 PY
