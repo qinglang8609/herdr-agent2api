@@ -16,9 +16,17 @@
 open ~/.config/herdr-app/agent2api.json   # 把 token 填进去
 ```
 
-token 从面板拿：浏览器登录管理面板 → F12 → Application → Cookies → `agent2api-panel`，或者 Network 里任意请求头的 `Authorization: Bearer <token>`。
+配置里填**面板的账号密码**就行，插件自己登录：
 
-再切到布局 `abs-stats`（`install.sh` 会自动切）。这个布局就是 abs 的布局多一个节点，所以**前提是已经装了 abs**。
+```json
+{
+  "base": "https://code.d8gx.com",
+  "username": "你的账号",
+  "password": "你的密码"
+}
+```
+
+文件权限是 600，只在本机。登录后的 refresh 会被插件写回这个文件的 `refresh` 字段，**不用管它**。
 
 ## 数据从哪来
 
@@ -88,3 +96,16 @@ gh repo clone qinglang8609/herdr-agent2api /tmp/a2a \
 - 没有 `gh` 就用 `git clone https://github.com/qinglang8609/herdr-agent2api.git /tmp/a2a`
 
 装完会自动切到 `abs-stats` 布局；没切过去就手动 `herdr-app do layout.switch --name abs-stats`。
+
+## 登录是插件自己管的
+
+面板的凭据是「access 2 小时 + refresh 30 天」（`access.rs:96`）。插件：
+
+1. 用配置里的账号密码登一次，拿到两个令牌
+2. access 快过期（提前 5 分钟）就调 `POST /api/panel/refresh` 换新
+3. 续期是**轮换**的：每次换出一把新 refresh、寿命重新算 30 天 —— 所以只要这台机器开着，就不会再掉线
+4. 新 refresh 原子写回 `agent2api.json`（旧值再用一次会被判重放、整条会话链作废）
+
+机器关了超过 30 天才会需要重新登录，那时插件会用配置里的账号密码自动登，不用你动手。
+
+**注意**：密码是明文存在 `~/.config/herdr-app/agent2api.json`（600 权限），不进任何仓库。
