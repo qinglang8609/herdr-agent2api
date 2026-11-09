@@ -19,11 +19,8 @@ fi
 mkdir -p "$MODS" "$HOME_DIR/layouts"
 
 # mod：复制而不是软链（跟 abs 一样，省得 image() 读软链出问题）。
-for m in agent2api composer; do
-  [ -d "$SRC/mods/$m" ] || continue
-  rm -rf "$MODS/$m"
-  cp -R "$SRC/mods/$m" "$MODS/$m"
-done
+rm -rf "$MODS/agent2api"
+cp -R "$SRC/mods/agent2api" "$MODS/agent2api"
 
 # 主题：Eva-Theme 转过来的两套（暗/亮），覆盖同名文件，别的不动。
 mkdir -p "$HOME_DIR/themes"
