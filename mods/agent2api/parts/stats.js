@@ -262,8 +262,8 @@ export default class Stats extends View {
         );
     };
 
-    // 段色：红黄蓝绿紫各一，但都压过饱和度（暗、灰调），不刺眼。
-    const TINT = ["#9e5f5f", "#b3924f", "#6b9159", "#5c7fa3", "#85699b"];
+    // 段色：红黄蓝绿紫各一，压过饱和度（不刺眼），整体提亮过一档。
+    const TINT = ["#c07a7a", "#d4b06a", "#86b073", "#7499c2", "#a284bd"];
 
     // 一根堆叠条：按模型占比分段。
     const stack = (models, total) =>
@@ -323,14 +323,14 @@ export default class Stats extends View {
           .child(stack(d.topModels, d.tokens)),
       )
       // 请求数据：成功 / 总，条 = 成功率
-      .child(row("请求数据", `${num(d.ok)} / ${num(d.requests)}`, rate, null, "#9e5f5f"))
+      .child(row("请求数据", `${num(d.ok)} / ${num(d.requests)}`, rate, null, "#86b073"))
       .child(
         row(
           "缓存命中 · 1h",
           d.hit == null ? "—" : `${(d.hit * 100).toFixed(1)}%`,
           d.hit,
           null,
-          "#b3924f",
+          "#d4b06a",
         ),
       )
       .child(
@@ -339,7 +339,7 @@ export default class Stats extends View {
           d.accounts ? `${d.usable}/${d.accounts}` : "—",
           usable,
           null,
-          "#5c7fa3",
+          "#7499c2",
         ),
       )
       // 总积分：积分没有天然上限，这条不画进度条，只给数字。
