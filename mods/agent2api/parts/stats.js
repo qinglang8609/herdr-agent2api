@@ -234,7 +234,7 @@ export default class Stats extends View {
 
     // 一个指标：左上名字、右上数值，下面一条进度。
     // 两段用 flex_grow 分配，是真正的百分比，不是写死的像素。
-    const row = (name, value, frac, sub) => {
+    const row = (name, value, frac, sub, color) => {
       const f = Math.max(0, Math.min(1, frac ?? 0));
       return v_flex()
         .w_full()
@@ -258,13 +258,12 @@ export default class Stats extends View {
             .rounded(2)
             .overflow_hidden()
             .bg(t.raised)
-            .child(div().h(4).rounded(2).bg(t.dim).flex_grow(Math.max(0.015, f))),
+            .child(div().h(4).rounded(2).bg(color ?? t.dim).flex_grow(Math.max(0.015, f))),
         );
     };
 
-    // 段色只在两种灰之间交替，不用彩色：亮的那段跟文字/图标同一个色（t.dim），
-    // 暗的那段用比 border 更深的 raised，两者对比才看得出来。
-    const TINT = [t.dim, t.raised];
+    // 段色：红黄蓝绿紫各一，但都压过饱和度（暗、灰调），不刺眼。
+    const TINT = ["#9e5f5f", "#b3924f", "#6b9159", "#5c7fa3", "#85699b"];
 
     // 一根堆叠条：按模型占比分段。
     const stack = (models, total) =>
@@ -324,11 +323,25 @@ export default class Stats extends View {
           .child(stack(d.topModels, d.tokens)),
       )
       // 请求数据：成功 / 总，条 = 成功率
-      .child(row("请求数据", `${num(d.ok)} / ${num(d.requests)}`, rate))
+      .child(row("请求数据", `${num(d.ok)} / ${num(d.requests)}`, rate, null, "#9e5f5f"))
       .child(
-        row("缓存命中 · 1h", d.hit == null ? "—" : `${(d.hit * 100).toFixed(1)}%`, d.hit),
+        row(
+          "缓存命中 · 1h",
+          d.hit == null ? "—" : `${(d.hit * 100).toFixed(1)}%`,
+          d.hit,
+          null,
+          "#b3924f",
+        ),
       )
-      .child(row("账号可用", d.accounts ? `${d.usable}/${d.accounts}` : "—", usable))
+      .child(
+        row(
+          "账号可用",
+          d.accounts ? `${d.usable}/${d.accounts}` : "—",
+          usable,
+          null,
+          "#5c7fa3",
+        ),
+      )
       // 总积分：积分没有天然上限，这条不画进度条，只给数字。
       .child(
         h_flex()
