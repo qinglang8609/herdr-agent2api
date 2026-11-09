@@ -1,15 +1,25 @@
 // 侧栏最底部的统计块：模型用量 + 成功/总请求 + 缓存命中 + 账号 + 签到。
-// 数据来自自己搭的 code.d8gx.com 面板接口：
-//   /api/accounts           账号列表（available、enabled、checkedInToday）
-//   /api/stats/requests     请求记录，offset 翻页，每页 limit 上限 500
-// 两个接口都只认 Authorization: Bearer <panel token>。
-// token 放在 ~/.config/herdr-app/agent2api.json，不进任何仓库。
+//
+// 数据来自自己搭的面板（默认 https://code.d8gx.com）：
+//   /api/stats/summary   overview.tokens / requests / successful、models[]、cacheRates.last1h
+//   /api/accounts        每个账号的 available / checkedInToday
+//
+// 登录自己管：账号密码换 access(2 小时) + refresh(30 天)，access 快过期就先续期。
+// 续期是**轮换**的 —— 每次换出一把新 refresh、寿命重新算 30 天，所以只要这台机器
+// 在跑就不会再掉线。旧 refresh 再用一次会被判重放、整条会话链作废，所以新值要
+// 原子写回配置文件；写不进去就先用内存里那把，重启后靠账号密码重新登录兜底。
+//
+// 配置在 ~/.config/herdr-app/agent2api.json，不进任何仓库：
+//   { "base": "https://code.d8gx.com", "username": "...", "password": "...", "refresh": "..." }
 
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { appHome, exec, readTextFile, theme } from "herdr";
+import { appHome, exec, readTextFile, writeTextFile, theme } from "herdr";
 
+const CONFIG = "agent2api.json";
 const TOP_MODELS = 5; // 堆叠条最多按几个模型分段
+const LEAD_MS = 5 * 60 * 1000; // 提前 5 分钟续期，别卡在边界上
+const FALLBACK_TTL = 7200; // 接口没给 expiresIn 时按 2 小时算
 
 // 中文习惯的单位：万 / 亿。
 const fmt = (n) => {
@@ -27,19 +37,95 @@ export default class Stats extends View {
     this.data = null;
     this.note = null;
     this.busy = false;
+    this.session = null; // { access, refresh, exp }
     this.refresh(cx);
-    // 取数就是两个小请求（summary + accounts，共约 80KB），15 秒一次不心疼。
+    // 取数就是两个小请求（summary + accounts，共约 11KB 压缩后），15 秒一次不心疼。
     cx.timer.every(15000, (cx) => this.refresh(cx));
   }
 
-  async getJson(url, auth) {
-    const r = await exec("curl", ["-s", "--compressed", "--max-time", "20", "-H", auth, url]).catch(() => null);
+  // 一次 curl，返回 stdout 文本（失败给 null）。
+  async curl(args) {
+    const r = await exec("curl", ["-s", "--compressed", "--max-time", "20", ...args]).catch(
+      () => null,
+    );
     if (!r || r.code !== 0) return null;
+    return r.stdout;
+  }
+
+  async json(url, args = []) {
+    const out = await this.curl([...args, url]);
+    if (out == null) return null;
     try {
-      return JSON.parse(r.stdout);
+      return JSON.parse(out);
     } catch {
       return null;
     }
+  }
+
+  post(url, body, extra = []) {
+    return this.json(url, [
+      "-X",
+      "POST",
+      "-H",
+      "Content-Type: application/json",
+      "-H",
+      "x-panel-auth-mode: body",
+      ...extra,
+      "--data",
+      body ?? "",
+    ]);
+  }
+
+  // 登录与续期返回的形状一样：{ accessToken, refreshToken, expiresIn }。
+  take(d) {
+    if (!d?.accessToken) return null;
+    this.session = {
+      access: d.accessToken,
+      refresh: d.refreshToken,
+      exp: Date.now() + (d.expiresIn ?? FALLBACK_TTL) * 1000,
+    };
+    return this.session;
+  }
+
+  // 轮换出来的 refresh 写回配置。expected 传原来的文本，别人同时改过就写不进去
+  // （Stale 会 reject），这一轮放弃、内存里那把照用，下轮重读文件。
+  async persist(cfg, raw, refresh) {
+    if (!refresh || refresh === cfg.refresh) return;
+    cfg.refresh = refresh;
+    await writeTextFile(
+      `${appHome()}/${CONFIG}`,
+      `${JSON.stringify(cfg, null, 2)}\n`,
+      raw,
+    ).catch(() => null);
+  }
+
+  // 要一个能用的 access：内存里没过期就直接用，否则 refresh 换新，再不行账号密码登录。
+  async authorize(cfg, raw, base) {
+    if (this.session?.access && Date.now() < this.session.exp - LEAD_MS) return this.session.access;
+
+    const rt = this.session?.refresh || cfg.refresh;
+    if (rt) {
+      const d = (await this.post(`${base}/api/panel/refresh`, "", ["-H", `x-panel-refresh: ${rt}`]))
+        ?.data;
+      if (this.take(d)) {
+        await this.persist(cfg, raw, d.refreshToken);
+        return this.session.access;
+      }
+    }
+    if (cfg.username && cfg.password) {
+      const d = (await this.post(
+        `${base}/api/panel/login`,
+        JSON.stringify({ username: cfg.username, password: cfg.password }),
+      ))?.data;
+      if (this.take(d)) {
+        await this.persist(cfg, raw, d.refreshToken);
+        return this.session.access;
+      }
+      this.note = "登录失败：检查配置里的账号密码";
+      return null;
+    }
+    // 只贴了旧式 token 的配置也照样能用。
+    return cfg.token || null;
   }
 
   refresh(cx) {
@@ -47,30 +133,45 @@ export default class Stats extends View {
     this.busy = true;
     cx.spawn(async (cx) => {
       try {
-        const raw = await readTextFile(`${appHome()}/agent2api.json`).catch(() => null);
+        const raw = await readTextFile(`${appHome()}/${CONFIG}`).catch(() => null);
         if (!raw) {
-          this.note = "缺 agent2api.json";
+          this.note = `缺 ${CONFIG}`;
           return;
         }
         const cfg = JSON.parse(raw);
         const base = String(cfg.base || "https://code.d8gx.com").replace(/\/+$/, "");
-        if (!cfg.token) {
-          this.note = "配置里没有 token";
-          return;
-        }
-        const auth = `Authorization: Bearer ${cfg.token}`;
+        const bearer = (tok) => ["-H", `Authorization: Bearer ${tok}`];
 
         // 面板报表页用的就是这个汇总接口：一次拿全，不用逐条翻页。
-        //   overview  -> tokens / requests / successful
-        //   models    -> 各模型用量
+        //   overview -> tokens / requests / successful
+        //   models   -> 各模型用量
         //   cacheRates.last1h -> 近 1 小时缓存命中率
-        // 账号可用和签到还在 /api/accounts 里，两个并发。
-        const [sum, acc] = await Promise.all([
-          this.getJson(`${base}/api/stats/summary`, auth),
-          this.getJson(`${base}/api/accounts`, auth),
-        ]);
+        // 账号可用和签到在 /api/accounts 里，两个并发。
+        // 401 的响应体也是合法 JSON（{"error":{...}}），不能只看「有没有解析出对象」——
+        // 只有带 data 的才算真的拿到了数据，否则按失败处理，才会走到重新登录那一步。
+        const pull = async (access) => {
+          const [sum, acc] = await Promise.all([
+            this.json(`${base}/api/stats/summary`, bearer(access)),
+            this.json(`${base}/api/accounts`, bearer(access)),
+          ]);
+          return [sum?.data ? sum : null, acc?.data ? acc : null];
+        };
+
+        let access = await this.authorize(cfg, raw, base);
+        if (!access) {
+          this.note = this.note ?? "配置里没有账号密码，也没有 token";
+          return;
+        }
+        let [sum, acc] = await pull(access);
+
+        // 两个都空可能是内存里那把刚过期：作废重来一次（会走 refresh 或登录）。
         if (!sum && !acc) {
-          this.note = "取不到数据（token 可能过期）";
+          this.session = null;
+          access = await this.authorize(cfg, raw, base);
+          if (access) [sum, acc] = await pull(access);
+        }
+        if (!sum && !acc) {
+          this.note = "取不到数据（登录或续期失败）";
           return;
         }
 
@@ -135,7 +236,7 @@ export default class Stats extends View {
         );
     };
 
-    // 段色只在两种灰之间交替，不用彩色：亮的那段跟左侧栏图标同一个色（t.muted），
+    // 段色只在两种灰之间交替，不用彩色：亮的那段跟文字/图标同一个色（t.dim），
     // 暗的那段用比 border 更深的 raised，两者对比才看得出来。
     const TINT = [t.dim, t.raised];
 
