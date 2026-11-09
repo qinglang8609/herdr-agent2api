@@ -274,13 +274,14 @@ export default class Stats extends View {
         .overflow_hidden()
         .bg(t.raised)
         .children(
-          models.map(([, v], k) =>
+          models.map(([name, v], k) =>
             div()
               .h(4)
               .bg(TINT[k % TINT.length])
               // 只有首尾两段带单边圆角，段与段之间保持直边。
               .when(k === 0, (el) => el.rounded_l(2))
               .when(k === models.length - 1, (el) => el.rounded_r(2))
+              .tooltip(`${name}  ${fmt(v)}${total ? `  ${((v / total) * 100).toFixed(1)}%` : ""}`)
               .flex_grow(Math.max(0.0001, total ? v / total : 0)),
           ),
         );
