@@ -57,7 +57,7 @@ if thread:
         "id": "composer",
         "type": "block",
         "content": {"mod": "composer", "props": {"part": "composer"}},
-        "size": {"px": 132},
+        "size": {"px": 75},
     })
 open(out, "w").write(json.dumps(d, indent=2, ensure_ascii=False))
 print(f"已用 {src} 生成 {out}")

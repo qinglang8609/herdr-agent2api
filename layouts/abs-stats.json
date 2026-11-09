@@ -124,7 +124,7 @@
                   "id": "composer",
                   "type": "block",
                   "size": {
-                    "px": 132
+                    "px": 75
                   },
                   "content": {
                     "mod": "composer",

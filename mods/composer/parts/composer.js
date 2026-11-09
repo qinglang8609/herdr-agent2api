@@ -6,7 +6,24 @@
 
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, TextareaState, Textarea } from "gpui-base";
-import { theme, hc, notify, focused, panes, spaces, agents } from "herdr";
+import { theme, hc, notify, focused, panes, spaces, agents, layout, run } from "herdr";
+
+// 输入框的高度：默认 1 行，内容多了自己长高。布局节点是有固定高度的，所以
+// 「长高」只能靠 layout.resize 改节点高度，改的是这个节点的 px。
+const LINE_H = 19; // text_size(13) 的一行
+const BASE = 75; // 1 行时的高度：行 19 + 框内边距 14 + 按钮行 28 + 外上下 14
+const MAX_ROWS = 8;
+const CHARS = 110; // 保守估计一行能放多少字符（用来算软换行占了几行）
+
+function nodeById(node, id) {
+  if (!node) return null;
+  if (node.id === id) return node;
+  for (const c of node.children ?? []) {
+    const hit = nodeById(c, id);
+    if (hit) return hit;
+  }
+  return null;
+}
 
 // 多行框按 Enter 会先插入一个 "\n" 再触发 submit，所以「原样发送」要把那个换行
 // 摘掉（studio 的 composer 也这么做）。Shift+Enter 才保留换行。
@@ -25,12 +42,15 @@ export default class Composer extends View {
     this.before = "";
     this.touched = false;
     this.busy = false;
+    // 当前节点高度，用来判断要不要真的调 layout.resize（每敲一个字都调没必要）
+    this.px = nodeById(layout(), "composer")?.size?.px ?? BASE;
     this.input = TextareaState.new({ placeholder: "写点什么发给这个 pane，回车发送" });
     this.input.set_soft_wrap(true);
 
     this.input.on("change", (_e, cx) => {
       this.before = this.text;
       this.text = this.input.value();
+      this.fit();
       cx.notify();
     });
     this.input.on("submit", (e, cx) => {
@@ -50,6 +70,23 @@ export default class Composer extends View {
       this.touched = false;
       cx.notify();
     });
+  }
+
+  // 这段文字要占几行：按显式换行切开，每段再按宽度估一次软换行。
+  rowsOf(text) {
+    let rows = 0;
+    for (const seg of String(text ?? "").split("\n")) {
+      rows += Math.max(1, Math.ceil(seg.length / CHARS));
+    }
+    return Math.max(1, Math.min(MAX_ROWS, rows));
+  }
+
+  // 让布局节点跟着内容长高（1 行是 BASE，每多一行加 LINE_H）。
+  fit() {
+    const want = BASE + (this.rowsOf(this.text) - 1) * LINE_H;
+    if (want === this.px) return;
+    this.px = want;
+    run("layout.resize", { id: "composer", px: want });
   }
 
   // 当前该写给谁：聚焦的 pane 的终端；它要是没有（比如焦点在 mod 块上），
@@ -80,6 +117,7 @@ export default class Composer extends View {
     }
     this.text = "";
     this.input.set_value("");
+    this.fit();
     cx.notify();
     cx.spawn(async () => {
       const r = await hc(["send", to.address, text]).catch((e) => ({ code: 1, stderr: String(e) }));
