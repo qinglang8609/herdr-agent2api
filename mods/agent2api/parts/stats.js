@@ -50,12 +50,15 @@ export default class Stats extends View {
     cx.timer.every(15000, (cx) => this.refresh(cx));
   }
 
-  // 一次 curl，返回 stdout 文本（失败给 null）。
+  // 一次 curl，返回 stdout 文本（失败给 null，并把真实原因留到 lastCurlError）。
   async curl(args) {
     const r = await exec("curl", ["-s", "--compressed", "--max-time", "20", ...args]).catch(
-      () => null,
+      (e) => ({ code: -1, stderr: String(e?.message || e) }),
     );
-    if (!r || r.code !== 0) return null;
+    if (!r || r.code !== 0) {
+      this.lastCurlError = (r?.stderr || r?.stdout || `退出码 ${r?.code}`).trim().slice(0, 120);
+      return null;
+    }
     return r.stdout;
   }
 
@@ -120,15 +123,18 @@ export default class Stats extends View {
       }
     }
     if (cfg.username && cfg.password) {
-      const d = (await this.post(
+      const resp = await this.post(
         `${base}/api/panel/login`,
         JSON.stringify({ username: cfg.username, password: cfg.password }),
-      ))?.data;
+      );
+      const d = resp?.data;
       if (this.take(d)) {
         await this.persist(cfg, raw, d.refreshToken);
         return this.session.access;
       }
-      this.note = "登录失败：检查配置里的账号密码";
+      // 把真实原因露出来：接口的 error 字段，或 curl 失败时的 stderr，别再只看一句笼统话。
+      const reason = resp?.error || resp?.message || this.lastCurlError;
+      this.note = reason ? `登录失败：${String(reason).slice(0, 60)}` : "登录失败：检查配置里的账号密码";
       return null;
     }
     // 只贴了旧式 token 的配置也照样能用。
