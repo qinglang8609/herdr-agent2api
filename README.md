@@ -28,20 +28,9 @@ open ~/.config/herdr-app/agent2api.json   # 把 token 填进去
 
 文件权限是 600，只在本机。登录后的 refresh 会被插件写回这个文件的 `refresh` 字段，**不用管它**。
 
-## 数据从哪来
-
-| 接口 | 用途 |
-|---|---|
-| `GET /api/accounts` | 账号列表：`available`（可用数）、`checkedInToday`（今日签到） |
-| `GET /api/stats/requests?limit=500` | 外层 `total` 是请求总数；每条带 `totalTokens`、`status`、`ts` |
-
-认证：`Authorization: Bearer <panel token>`。
-
-**已知限制**：`/api/stats/requests` 分页，每页 50、`limit` 最多 500，且不认 `since`/`range`/`hours`。所以「token」和「成功率」是**最近 500 条**的合计，不是全部历史；「请求」是接口给的 `total`（准确）。
-
 ## 刷新
 
-5 分钟一次（`parts/stats.js` 里的 `cx.timer.every(300000, ...)`）。统计数字不需要秒级新鲜，拉一次约 340KB。
+15 秒一次（`parts/stats.js` 里的 `cx.timer.every(15000, ...)`）：summary 和 accounts 两个小请求并发拉，积分快照 60 秒才拉一次（逐账号实时查要 4 秒，不值）。接口见下「接口」。
 
 ## 布局怎么加的
 
