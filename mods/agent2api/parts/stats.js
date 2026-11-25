@@ -1,8 +1,10 @@
 // 侧栏最底部的统计块：模型用量 + 成功/总请求 + 缓存命中 + 账号 + 签到。
 //
 // 数据来自自己搭的面板（默认 https://code.d8gx.com）：
-//   /api/stats/summary   overview.tokens / requests / successful、models[]、cacheRates.last1h
+//   /api/stats/summary?range=all   overview.tokens / requests / successful / cacheRate、models[]
 //   /api/accounts        每个账号的 available / checkedInToday
+//
+// 时间范围固定取「全部」：不带 range 时服务端默认只给近 7 天，数值会差近 10 倍。
 //
 // 登录自己管：账号密码换 access(2 小时) + refresh(30 天)，access 快过期就先续期。
 // 续期是**轮换**的 —— 每次换出一把新 refresh、寿命重新算 30 天，所以只要这台机器
@@ -43,7 +45,7 @@ export default class Stats extends View {
     this.note = null;
     this.busy = false;
     this.session = null; // { access, refresh, exp }
-    this.points = null; // 所有账号的积分总数
+    this.points = null; // 所有账号的可用积分总数
     this.pointsAt = 0; // 上次取积分的时间（这个 60 秒才拉一次）
     this.refresh(cx);
     // 取数就是两个小请求（summary + accounts，共约 11KB 压缩后），15 秒一次不心疼。
@@ -158,13 +160,14 @@ export default class Stats extends View {
         // 面板报表页用的就是这个汇总接口：一次拿全，不用逐条翻页。
         //   overview -> tokens / requests / successful
         //   models   -> 各模型用量
-        //   cacheRates.last1h -> 近 1 小时缓存命中率
+        //   cacheRates.last10m -> 缓存命中率（面板 tooltip 默认就是近 10 分钟那一档）
+        // range=all 对齐面板的「全部」标签，不带就是近 7 天。
         // 账号可用和签到在 /api/accounts 里，两个并发。
         // 401 的响应体也是合法 JSON（{"error":{...}}），不能只看「有没有解析出对象」——
         // 只有带 data 的才算真的拿到了数据，否则按失败处理，才会走到重新登录那一步。
         const pull = async (access) => {
           const [sum, acc] = await Promise.all([
-            this.json(`${base}/api/stats/summary`, bearer(access)),
+            this.json(`${base}/api/stats/summary?range=all`, bearer(access)),
             this.json(`${base}/api/accounts`, bearer(access)),
           ]);
           return [sum?.data ? sum : null, acc?.data ? acc : null];
@@ -195,7 +198,7 @@ export default class Stats extends View {
           .slice(0, TOP_MODELS);
         const list = acc?.data?.accounts ?? [];
 
-        // 总积分：快照里每个账号有一行 id="account"、label="总积分" 的额度，加总即可。
+        // 可用积分：快照里每个账号有一行 id="account"、label="总积分" 的额度，加总即可。
         // 实时接口 /api/accounts/usage 一次要 4 秒（逐账号查），快照只要 0.15 秒 ——
         // 用快照，而且 60 秒才拉一次（积分变得慢）。
         if (!this.points || Date.now() - this.pointsAt > 60000) {
@@ -219,9 +222,11 @@ export default class Stats extends View {
           topModels,
           requests: ov.requests ?? 0,
           ok: ov.successful ?? 0,
-          hit: sum?.data?.cacheRates?.last1h?.rate ?? null,
+          // 和面板「缓存命中率」一致：取近 10 分钟那一档，不用全范围的 overview.cacheRate。
+          hit: sum?.data?.cacheRates?.last10m?.rate ?? null,
           // available 为 null 表示「这一轮还没查到」，不是不可用；只有 false 才算不可用。
-          usable: list.filter((a) => a.available !== false).length,
+          // enabled=false 是在面板里被禁用的账号，它 available 依旧是 true，但不算可用。
+          usable: list.filter((a) => a.enabled !== false && a.available !== false).length,
           accounts: list.length,
           signed: list.filter((a) => a.checkedInToday === true).length,
         };
@@ -333,7 +338,7 @@ export default class Stats extends View {
       .child(row("请求数据", `${num(d.ok)} / ${num(d.requests)}`, rate, null, "#25703d"))
       .child(
         row(
-          "缓存命中 · 1h",
+          "缓存命中",
           d.hit == null ? "—" : `${(d.hit * 100).toFixed(1)}%`,
           d.hit,
           null,
@@ -349,13 +354,13 @@ export default class Stats extends View {
           "#255389",
         ),
       )
-      // 总积分：积分没有天然上限，这条不画进度条，只给数字。
+      // 可用积分：积分没有天然上限，这条不画进度条，只给数字。
       .child(
         h_flex()
           .w_full()
           .gap(6)
           .items_center()
-          .child(div().text_size(11).text_color(t.dim).child("总积分"))
+          .child(div().text_size(11).text_color(t.dim).child("可用积分"))
           .child(div().flex_1())
           .child(
             div()
