@@ -29,11 +29,14 @@ for t in "$SRC"/themes/*.json; do
   cp -f "$t" "$HOME_DIR/themes/$(basename "$t")"
 done
 
-# 布局：单独一份 abs-stats.json，abs.json 原样不动。
-if [ -f "$HOME_DIR/layouts/abs-stats.json" ]; then
-  cp "$HOME_DIR/layouts/abs-stats.json" "$HOME_DIR/layouts/abs-stats.json.before-install"
+# 布局：abs.json 在就用它现生成一份，结构永远跟 abs 一致。
+# 不能直接覆盖仓库里的老副本 —— abs 后来加的 review-body 子页（files / changes）会丢，
+# 右侧边栏点文件夹和 git 时就报 layout.select failed: no stack "review-body" with a child "changes"。
+if [ -f "$HOME_DIR/layouts/abs.json" ]; then
+  sh "$SRC/sync-layout.sh"
+else
+  cp -f "$SRC/layouts/abs-stats.json" "$HOME_DIR/layouts/abs-stats.json"
 fi
-cp -f "$SRC/layouts/abs-stats.json" "$HOME_DIR/layouts/abs-stats.json"
 
 # token 配置：给了 A2A_TOKEN 就直接写；没给的话，只在没有配置文件时才生成模板。
 if [ -n "${A2A_TOKEN:-}" ]; then

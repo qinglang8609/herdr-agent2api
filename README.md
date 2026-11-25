@@ -42,7 +42,7 @@ open ~/.config/herdr-app/agent2api.json   # 把 token 填进去
   "size": { "px": 206 } }
 ```
 
-所以 abs 布局以后若有改动，这份副本要手动同步一次。
+所以 abs 布局以后若有改动，跑一次 `./sync-layout.sh` 或重跑 `install.sh` 即可（两者都从当前 `abs.json` 现生成，不会回退到旧结构）。
 
 ## token 失效
 

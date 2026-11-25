@@ -130,6 +130,7 @@
                 {
                   "id": "review-body",
                   "type": "stack",
+                  "active": "abs",
                   "children": [
                     {
                       "id": "abs",
@@ -140,9 +141,22 @@
                           "part": "panel"
                         }
                       }
+                    },
+                    {
+                      "id": "files",
+                      "type": "block",
+                      "content": {
+                        "mod": "files"
+                      }
+                    },
+                    {
+                      "id": "changes",
+                      "type": "block",
+                      "content": {
+                        "mod": "changes"
+                      }
                     }
-                  ],
-                  "active": "abs"
+                  ]
                 }
               ],
               "size": {
