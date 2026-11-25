@@ -30,7 +30,7 @@ open ~/.config/herdr-app/agent2api.json   # 把 token 填进去
 
 ## 刷新
 
-15 秒一次（`parts/stats.js` 里的 `cx.timer.every(15000, ...)`）：summary 和 accounts 两个小请求并发拉，积分快照 60 秒才拉一次（逐账号实时查要 4 秒，不值）。接口见下「接口」。
+15 秒一次（`parts/stats.js` 里的 `cx.timer.every(15000, ...)`）：summary（带 `range=all`）和 accounts 两个小请求并发拉，积分快照 60 秒才拉一次（逐账号实时查要 4 秒，不值）。接口见下「接口」。
 
 ## 布局怎么加的
 
@@ -39,7 +39,7 @@ open ~/.config/herdr-app/agent2api.json   # 把 token 填进去
 ```json
 { "id": "agent2api-stats", "type": "block",
   "content": { "mod": "agent2api", "props": { "part": "stats" } },
-  "size": { "px": 76 } }
+  "size": { "px": 206 } }
 ```
 
 所以 abs 布局以后若有改动，这份副本要手动同步一次。
@@ -64,9 +64,9 @@ open ~/.config/herdr-app/agent2api.json   # 把 token 填进去
 
 | 接口 | 用途 |
 |---|---|
-| `GET /api/stats/summary` | `overview.tokens / requests / successful`、`models[]`、`cacheRates.last1h.rate` |
-| `GET /api/accounts` | 每个账号的 `available`、`checkedInToday` |
-| `GET /api/accounts/usage/snapshot` | `data.quotaSources` 里每账号一行 `id:"account"`、`label:"总积分"`，加总就是所有账号的积分总数（60 秒拉一次） |
+| `GET /api/stats/summary?range=all` | `overview.tokens / requests / successful`、`models[]`、`cacheRates.last10m.rate`（缓存命中，取近 10 分钟那档）。不带 `range` 服务端只给近 7 天 |
+| `GET /api/accounts` | 每个账号的 `enabled`、`available`、`checkedInToday`。账号可用按 `enabled !== false && available !== false` 算：面板禁用的账号 `enabled=false` 但 `available` 仍是 `true` |
+| `GET /api/accounts/usage/snapshot` | `data.quotaSources` 里每账号一行 `id:"account"`、`label:"总积分"`，加总就是所有账号的可用积分（60 秒拉一次） |
 
 **为什么积分用 snapshot 不用 `usage`**：`/api/accounts/usage` 是逐账号实时查，23 个账号要 **4 秒**；`usage/snapshot` 是最近一次定时查询的快照，只要 **0.15 秒**。数值一样（都出自服务端 `limiter::sources::rows_for`）。
 
