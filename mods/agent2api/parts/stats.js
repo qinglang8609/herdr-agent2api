@@ -260,7 +260,7 @@ export default class Stats extends View {
             .when(Boolean(sub), (el) =>
               el.child(div().text_size(10).text_color(t.dim).child(sub)),
             )
-            .child(div().text_size(11).text_color(t.dim).child(value)),
+            .child(div().text_size(11).text_color(color ?? t.dim).child(value)),
         )
         .child(
           h_flex()
@@ -268,13 +268,13 @@ export default class Stats extends View {
             .h(4)
             .rounded(2)
             .overflow_hidden()
-            .bg(t.raised)
+            .bg(t.border)
             .child(div().h(4).rounded(2).bg(color ?? t.dim).flex_grow(Math.max(0.015, f))),
         );
     };
 
-    // 段色：红黄蓝绿紫各一，饱和的深色（浓郁但不荧光）。
-    const TINT = ["#8c2e2e", "#9e7718", "#25703d", "#255389", "#60398a"];
+    // 段色：跟下面三行的填充色同一套亮度（大红、金、绿、蓝、紫）。
+    const TINT = ["#c0503f", "#c99a3e", "#4fbf6b", "#5e8fd8", "#9b6bc8"];
 
     // 一根堆叠条：按模型占比分段。
     const stack = (models, total) =>
@@ -335,14 +335,14 @@ export default class Stats extends View {
           .child(stack(d.topModels, d.tokens)),
       )
       // 请求数据：成功 / 总，条 = 成功率
-      .child(row("请求数据", `${num(d.ok)} / ${num(d.requests)}`, rate, null, "#25703d"))
+      .child(row("请求数据", `${num(d.ok)} / ${num(d.requests)}`, rate, null, "#4fbf6b"))
       .child(
         row(
           "缓存命中",
           d.hit == null ? "—" : `${(d.hit * 100).toFixed(1)}%`,
           d.hit,
           null,
-          "#9e7718",
+          "#e2b45c",
         ),
       )
       .child(
@@ -351,7 +351,7 @@ export default class Stats extends View {
           d.accounts ? `${d.usable}/${d.accounts}` : "—",
           usable,
           null,
-          "#255389",
+          "#8fb1ec",
         ),
       )
       // 可用积分：积分没有天然上限，这条不画进度条，只给数字。
